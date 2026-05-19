@@ -499,11 +499,7 @@ class ProxyServerSystem extends EventEmitter {
         });
 
         // OpenAI Response API count input tokens endpoint
-        app.post("/v1/responses/input_tokens", (req, res) => {
-            this.requestHandler.processOpenAIResponseInputTokens(req, res);
-        });
-        // Compatibility alias (some clients omit the /v1 prefix)
-        app.post("/responses/input_tokens", (req, res) => {
+        app.post(["/v1/responses/input_tokens", "/responses/input_tokens"], (req, res) => {
             this.requestHandler.processOpenAIResponseInputTokens(req, res);
         });
 
