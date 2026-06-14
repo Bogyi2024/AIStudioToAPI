@@ -1,9 +1,12 @@
-# Single-stage build with Node.js 24
+# Single-stage build with Node.js 24 - NO VNC packages
+# Build from source: place this Dockerfile in the root of the AIStudioToAPI-main
+# source tree (alongside main.js, package.json, src/, configs/, scripts/, ui/),
+# along with your pre-generated auth-0.json.
 FROM node:24-slim
 
 WORKDIR /app
 
-# Install system dependencies required for Playwright/Camoufox browser, VNC, and dev tools (git)
+# System dependencies for Playwright/Camoufox browser only (no xvfb/x11vnc/websockify)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
@@ -29,21 +32,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxrandr2 \
     libxss1 \
     libxtst6 \
-    xvfb \
-    x11vnc \
-    websockify \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
-# Copy package manifests and install all dependencies (including dev for build tools)
-# Layer is cached unless package.json changes
+# Install dependencies
 COPY package*.json ./
 RUN npm install --no-audit --no-fund --ignore-scripts \
     && npm cache clean --force
 
 # Download and extract Camoufox browser binary
-# Layer is cached unless CAMOUFOX_URL argument changes
-# Automatically selects architecture-specific binary if URL not provided
 ARG CAMOUFOX_URL
 RUN ARCH=$(uname -m) && \
     if [ -z "$CAMOUFOX_URL" ]; then \
@@ -66,8 +63,7 @@ RUN ARCH=$(uname -m) && \
     rm -rf /tmp/cf camoufox.zip && \
     chmod +x /app/camoufox-linux/camoufox
 
-# Copy application source code with proper ownership
-# Layer is rebuilt when source code changes
+# Copy application source code
 COPY --chown=node:node main.js ./
 COPY --chown=node:node vite.config.js ./
 COPY --chown=node:node src ./src
@@ -75,27 +71,25 @@ COPY --chown=node:node configs ./configs
 COPY --chown=node:node scripts ./scripts
 COPY --chown=node:node ui ./ui
 
-# Build frontend assets with Vite
-# VERSION is passed from docker build-args for version display in UI
+# Build frontend assets
 ARG VERSION
 RUN VERSION=${VERSION} npm run build:ui
 
-# Remove dev dependencies after build to reduce image size
+# Remove dev dependencies
 RUN npm prune --omit=dev && npm cache clean --force
 
-# TODO: Temporarily use the root user, and in the future we will switch to the node user
 USER root
 
-# Expose application ports
 EXPOSE 7860
 
-# Configure runtime environment
 ENV NODE_ENV=production \
-    CAMOUFOX_EXECUTABLE_PATH=/app/camoufox-linux/camoufox
+    CAMOUFOX_EXECUTABLE_PATH=/app/camoufox-linux/camoufox \
+    API_KEYS=test123
 
-# Health check for container orchestration platforms
+# Bake in pre-generated auth file (no VNC login needed)
+COPY auth-0.json /app/configs/auth/auth-0.json
+
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD node -e "const port = process.env.PORT || 7860; require('http').get('http://localhost:' + port + '/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)}).on('error', () => process.exit(1));" || exit 1
 
-# Start the application server
 CMD ["node", "main.js"]
