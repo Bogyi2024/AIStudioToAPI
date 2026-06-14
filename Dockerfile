@@ -86,8 +86,7 @@ ENV NODE_ENV=production \
     CAMOUFOX_EXECUTABLE_PATH=/app/camoufox-linux/camoufox \
     API_KEYS=test123
 
-# Bake in pre-generated auth file (no VNC login needed)
-COPY auth-0.json /app/configs/auth/auth-0.json
+
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD node -e "const port = process.env.PORT || 7860; require('http').get('http://localhost:' + port + '/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)}).on('error', () => process.exit(1));" || exit 1
